@@ -15,13 +15,13 @@ class CreateTransfersTable extends Migration
     {
         Schema::create('transfers', function (Blueprint $table) {
             $table->id();
-            $table->string('origin_id');
-            $table->string('destination_id');
+            $table->string('account_from');
+            $table->string('account_to');
             $table->decimal('amount', 15, 2);
             $table->timestamps();
 
-            $table->foreign('origin_id')->references('id')->on('accounts')->onDelete('cascade');
-            $table->foreign('destination_id')->references('id')->on('accounts')->onDelete('cascade');
+            $table->foreign('account_from')->references('id')->on('accounts')->onDelete('cascade');
+            $table->foreign('account_to')->references('id')->on('accounts')->onDelete('cascade');
         });
     }
 
