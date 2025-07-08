@@ -26,7 +26,6 @@ class Transfer extends Model
         if ($account_from->balance < $transfer['amount']) throw new Exception("0", 400);
 
         if (!$account_to) {
-            dd('teste');
             Account::createAccount($transfer['account_to']);
         }
 
