@@ -18,21 +18,30 @@ class Transaction extends Model
     'account_id'
   ];
 
-  public static function createTransaction($transaction)
+  public static function createTransaction(array $data)
   {
-    $account = Account::find($transaction['account_id']);
+    $account = Account::find($data['account_id']);
 
-    if ($transaction['amount'] < 0) throw new Exception("Valor inválido", 400);
-    if ($transaction['type'] == 'withdraw') {
-      if (!$account) throw new Exception("Conta não encontrada", 404);
-      // Apenas para debug seguro:
-      if ($account->balance < $transaction['amount']) throw new Exception("Saldo insuficiente", 400);
-
-      $transaction['amount'] *= -1;
-    } else if (!$account) {
-      $account = Account::createAccount($transaction['account_id']);
+    if ($data['amount'] <= 0) {
+      throw new Exception("Invalid amount", 400);
     }
-    return Transaction::create($transaction);
+
+    if ($data['type'] === 'withdraw') {
+      if (!$account) {
+        throw new Exception("Account not found", 404);
+      }
+
+      if ($account->balance < $data['amount']) {
+        throw new Exception("Insufficient balance", 400);
+      }
+
+      $data['amount'] *= -1;
+    }
+    else if (!$account) {
+      $account = Account::createAccount($data['account_id']);
+    }
+
+    return Transaction::create($data);
   }
 
   public function account()
