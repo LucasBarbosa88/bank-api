@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\Transaction;
+use App\Models\Transfer;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,8 @@ class EventController extends Controller
       return DB::transaction(function () use ($request) {
         return match ($request->input('type')) {
           'deposit'  => $this->deposit($request),
+          'withdraw'  => $this->withdraw($request),
+          'transfer' => $this->transfer($request)
         };
       });
     } catch (Exception $e) {
@@ -105,6 +108,34 @@ class EventController extends Controller
       return response()->json([
         'status' => 'success',
         'origin' => $transaction->account->getInfo(),
+      ], 201);
+    } catch (\Exception $e) {
+      return response()->json([
+        'status'  => 'error',
+        'message' => $e->getMessage(),
+      ], 500);
+    }
+  }
+
+  private function transfer(Request $request)
+  {
+    $validated = $request->validate([
+      'origin'      => 'required|integer|exists:accounts,id',
+      'destination' => 'required|integer|different:origin|exists:accounts,id',
+      'amount'      => 'required|numeric|min:0.01',
+    ]);
+
+    try {
+      $transfer = Transfer::createTransfer([
+        'amount'      => $validated['amount'],
+        'account_from' => $validated['origin'],
+        'account_to'  => $validated['destination'],
+      ]);
+
+      return response()->json([
+        'status'      => 'success',
+        'origin'      => $transfer->from->getInfo(),
+        'destination' => $transfer->to->getInfo(),
       ], 201);
     } catch (\Exception $e) {
       return response()->json([
