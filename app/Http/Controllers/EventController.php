@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
 use App\Models\Transaction;
 use Exception;
 use Illuminate\Http\Request;
@@ -28,8 +29,6 @@ class EventController extends Controller
     $request->validate([
       'type' => 'required|string|in:deposit,withdraw,transfer',
     ]);
-
-    $type = $request->input('type');
 
     try {
       return DB::transaction(function () use ($request) {
@@ -66,7 +65,7 @@ class EventController extends Controller
         'status'      => 'success',
         'destination' => $transaction->account->getInfo(),
       ], 201);
-    } catch (\Throwable $e) {
+    } catch (\Exception $e) {
       $code = $e->getCode();
 
       if ($code < 100 || $code > 599) {
@@ -75,8 +74,43 @@ class EventController extends Controller
 
       return response()->json([
         'status'  => 'error',
-        'message' => 'Transaction failed',
+        'message' => $e->getMessage(),
       ], $code);
+    }
+  }
+
+  private function withdraw(Request $request)
+  {
+    $validated = $request->validate([
+      'origin' => 'required|integer|exists:accounts,id',
+      'amount' => 'required|numeric|min:0.01',
+    ]);
+
+    $account = Account::find($validated['origin']);
+
+    if (!$account || $account->balance < $validated['amount']) {
+      return response()->json([
+        'status'  => 'error',
+        'message' => 'Insufficient balance or account not found',
+      ], 404);
+    }
+
+    try {
+      $transaction = Transaction::createTransaction([
+        'type'       => 'withdraw',
+        'amount'     => $validated['amount'],
+        'account_id' => $account->id,
+      ]);
+
+      return response()->json([
+        'status' => 'success',
+        'origin' => $transaction->account->getInfo(),
+      ], 201);
+    } catch (\Exception $e) {
+      return response()->json([
+        'status'  => 'error',
+        'message' => $e->getMessage(),
+      ], 500);
     }
   }
 }
