@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 
 class EventController extends Controller
 {
@@ -22,7 +23,7 @@ class EventController extends Controller
 
     Schema::enableForeignKeyConstraints();
 
-    return response()->json(['message' => 'Database reset successfully.'], 200);
+    return response('OK', 200);
   }
 
   public function handleEvent(Request $request)
@@ -52,20 +53,21 @@ class EventController extends Controller
 
   private function deposit(Request $request)
   {
-    $validated = $request->validate([
-      'destination' => 'required|integer|exists:accounts,id',
-      'amount'      => 'required|numeric|min:0.01',
+    $validated = Validator::make($request->all(), [
+      'destination' => 'required|integer',
+      'amount' => 'required|numeric',
     ]);
+
+    if ($validated->fails()) throw new Exception("0", 400);
 
     try {
       $transaction = Transaction::createTransaction([
         'type'       => 'deposit',
-        'amount'     => $validated['amount'],
-        'account_id' => $validated['destination'],
+        'amount'     => $request->input('amount'),
+        'account_id' => $request->input('destination'),
       ]);
 
       return response()->json([
-        'status'      => 'success',
         'destination' => $transaction->account->getInfo(),
       ], 201);
     } catch (\Exception $e) {
@@ -84,29 +86,27 @@ class EventController extends Controller
 
   private function withdraw(Request $request)
   {
-    $validated = $request->validate([
-      'origin' => 'required|integer|exists:accounts,id',
-      'amount' => 'required|numeric|min:0.01',
+    $validated = Validator::make($request->all(), [
+      'origin' => 'required|integer',
+      'amount' => 'required|numeric',
     ]);
 
-    $account = Account::find($validated['origin']);
+    if ($validated->fails()) throw new Exception("0", 400);
 
-    if (!$account || $account->balance < $validated['amount']) {
-      return response()->json([
-        'status'  => 'error',
-        'message' => 'Insufficient balance or account not found',
-      ], 404);
+    $account = Account::find($request->input('origin'));
+
+    if (!$account || $account->balance < $request->input('amount')) {
+      return response('0', 404);
     }
 
     try {
       $transaction = Transaction::createTransaction([
         'type'       => 'withdraw',
-        'amount'     => $validated['amount'],
+        'amount'     => $request->input('amount'),
         'account_id' => $account->id,
       ]);
 
       return response()->json([
-        'status' => 'success',
         'origin' => $transaction->account->getInfo(),
       ], 201);
     } catch (\Exception $e) {
@@ -120,8 +120,8 @@ class EventController extends Controller
   private function transfer(Request $request)
   {
     $validated = $request->validate([
-      'origin'      => 'required|integer|exists:accounts,id',
-      'destination' => 'required|integer|different:origin|exists:accounts,id',
+      'origin'      => 'required|integer',
+      'destination' => 'required|integer|different:origin',
       'amount'      => 'required|numeric|min:0.01',
     ]);
 
@@ -133,15 +133,20 @@ class EventController extends Controller
       ]);
 
       return response()->json([
-        'status'      => 'success',
         'origin'      => $transfer->from->getInfo(),
         'destination' => $transfer->to->getInfo(),
       ], 201);
     } catch (\Exception $e) {
+      $code = $e->getCode() ?: 400;
+
+      if ($code === 404) {
+        return response('0', 404);
+      }
+
       return response()->json([
         'status'  => 'error',
         'message' => $e->getMessage(),
-      ], 500);
+      ], $code);
     }
   }
 }

@@ -16,15 +16,11 @@ class AccountController extends Controller
       'account_id' => 'required|integer',
     ]);
 
-    if ($validator->fails()) return response()->json([
-      'error' => 'Account ID is not valid!'
-    ], Response::HTTP_BAD_REQUEST);
+    if ($validator->fails()) return response()->json(0, 404);
 
     $account = Account::find($request->account_id);
 
-    if (!$account) return response()->json([
-      'error' => 'Account not found!'
-    ], Response::HTTP_NOT_FOUND);
+    if (!$account) return response()->json(0, 404);
 
     return response()->json(floatval($account->balance), 200);
   }
