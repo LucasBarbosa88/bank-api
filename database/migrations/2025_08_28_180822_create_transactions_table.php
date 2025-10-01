@@ -13,12 +13,11 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->string('account_id');
+            $table->foreignId('account_id')->constrained('accounts')->onDelete('cascade');
             $table->enum('type', ['deposit', 'withdraw']);
             $table->decimal('amount', 15, 2);
             $table->timestamps();
 
-            $table->foreign('account_id')->references('id')->on('accounts')->onDelete('cascade');
         });
     }
 

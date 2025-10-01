@@ -47,8 +47,6 @@ class EventController extends Controller
         'code'    => $e->getCode(),
       ], $e->getCode() ?: 400);
     }
-
-    return $response;
   }
 
   private function deposit(Request $request)
