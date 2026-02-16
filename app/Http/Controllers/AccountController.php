@@ -3,24 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Account;
+use App\Http\Requests\BalanceRequest;
+use App\Repositories\Contracts\AccountRepositoryInterface;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
 
 class AccountController extends Controller
 {
+  public function __construct(
+    private AccountRepositoryInterface $accounts
+  ) {
+  }
+
   public function getBalance(Request $request)
   {
-    $validator = Validator::make($request->all(), [
-      'account_id' => 'required|integer',
-    ]);
+    $validator = Validator::make($request->all(), (new BalanceRequest())->rules());
 
-    if ($validator->fails()) return response()->json(0, 404);
+    if ($validator->fails())
+      return response()->json(0, 404);
 
-    $account = Account::find($request->account_id);
+    $account = $this->accounts->find($request->account_id);
 
-    if (!$account) return response()->json(0, 404);
+    if (!$account)
+      return response()->json(0, 404);
 
     return response()->json(floatval($account->balance), 200);
   }
