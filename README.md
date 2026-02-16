@@ -55,7 +55,7 @@ The project follows a **Layered Architecture** to ensure separation of concerns,
 ## Example Test with cURL
 
 ```bash
-curl -X POST http://localhost:8000/api/event -H "Content-Type: application/json" -d '{"type":"deposit", "destination":"100", "amount":10}'
+curl -X POST http://localhost:8080/api/event -H "Content-Type: application/json" -d '{"type":"deposit", "destination":"100", "amount":10}'
 ```
 
 ---
