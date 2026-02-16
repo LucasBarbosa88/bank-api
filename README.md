@@ -3,68 +3,53 @@
 A simple banking API developed in Laravel to simulate basic financial operations such as deposit, withdrawal, transfer, and balance inquiry.  
 This project follows the MVC pattern and uses Eloquent ORM with MySQL.
 
-## Project Setup
+## Project Setup (Docker)
 
-Clone this repository:
-```bash
-git clone https://github.com/LucasBarbosa88/bank-api.git
-```
+This project is fully dockerized for ease of setup.
 
-Access the project directory:
-```bash
-cd bank-api
-```
+1. **Clone and Access:**
+   ```bash
+   git clone https://github.com/LucasBarbosa88/bank-api.git
+   cd bank-api
+   ```
 
-Install dependencies:
-```bash
-composer install
-```
+2. **Environment File:**
+   ```bash
+   cp .env.example .env
+   ```
 
-Copy the example env file:
-```bash
-cp .env.example .env
-```
+3. **Start the Application:**
+   ```bash
+   docker-compose up -d --build
+   ```
+   *The entrypoint script will automatically handle dependencies and migrations.*
 
-Create an empty database and update your `.env` file with the DB credentials.
-
-Generate app key:
-```bash
-php artisan key:generate
-```
-
-Run the migrations:
-```bash
-php artisan migrate
-```
-
-Start the local development server:
-```bash
-php artisan serve
-```
-
-You can now access the server at (http://localhost:8000)
-
+4. **Access:**
+   The API will be available at `http://localhost:8080`.
 ---
 
 ## Database
 
-- The **accounts** table stores account information and current balance.
-- The **transactions** table stores deposits and withdrawals (differentiated by the `type` field).
-- The **transfers** table stores money transfers between two accounts.
+- **accounts:** Stores account data and the current balance.
+- **transactions:** Records deposits and withdrawals.
+- **transfers:** Records money transfers between accounts.
 
-> The `balance` column in the **accounts** table is a denormalized field for performance reasons.  
-> It is automatically kept up-to-date using Laravel **model observers**, which react to insert/update/delete events on `transactions` and `transfers`.
+> [!IMPORTANT]
+> **Data Integrity:** The `balance` in the `accounts` table is updated atomically within database transactions using **Pessimistic Locking** (`FOR UPDATE`) to prevent race conditions and ensure 100% accuracy in concurrent operations.
 
 ---
 
 ## System Architecture
 
-The system follows the **MVC (Model-View-Controller)** pattern:
+The project follows a **Layered Architecture** to ensure separation of concerns, maintainability, and testability:
 
-- **Controllers** handle HTTP requests and validate input.
-- **Models** contain the business logic and relationships.
-- **Observers** ensure account balances are synchronized with transactions and transfers.
+- **Controllers:** Handle HTTP communication, request validation, and response formatting.
+- **DTOs (Data Transfer Objects):** Carry data between layers in a structured and immutable way, ensuring type safety.
+- **Services:** Contain the core business logic and manage database transactions.
+- **Repositories:** Abstract the data access layer, keeping the business logic decoupled from the ORM.
 
+### Flow Example:
+`Request` → `Controller` → `DTO` → `Service` → `Repository` → `Database`
 ---
 
 ## Example Test with cURL
