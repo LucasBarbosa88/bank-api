@@ -2,149 +2,99 @@
 
 namespace App\Http\Controllers;
 
+use App\DTOs\TransactionData;
+use App\DTOs\TransferData;
+use App\Http\Requests\DepositRequest;
+use App\Http\Requests\EventRequest;
+use App\Http\Requests\TransferRequest;
+use App\Http\Requests\WithdrawRequest;
+use App\Http\Resources\AccountResource;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\Transfer;
+use App\Services\TransactionService;
+use App\Services\TransferService;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 
 class EventController extends Controller
 {
+  public function __construct(
+    private TransactionService $transactions,
+    private TransferService $transfers
+  ) {
+  }
+
   public function reset()
   {
-    Schema::disableForeignKeyConstraints();
-
-    DB::table('transactions')->truncate();
-    DB::table('transfers')->truncate();
-    DB::table('accounts')->truncate();
-
-    Schema::enableForeignKeyConstraints();
+    \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+    Transfer::truncate();
+    Transaction::truncate();
+    Account::truncate();
+    \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
 
     return response('OK', 200);
   }
 
-  public function handleEvent(Request $request)
+  public function handleEvent(EventRequest $request)
   {
-    $request->validate([
-      'type' => 'required|string|in:deposit,withdraw,transfer',
-    ]);
-
     try {
-      return DB::transaction(function () use ($request) {
-        return match ($request->input('type')) {
-          'deposit'  => $this->deposit($request),
-          'withdraw'  => $this->withdraw($request),
-          'transfer' => $this->transfer($request)
-        };
-      });
+      return match ($request->validated()['type']) {
+        'deposit' => $this->deposit($request),
+        'withdraw' => $this->withdraw($request),
+        'transfer' => $this->transfer($request),
+      };
     } catch (Exception $e) {
-      DB::rollback();
-      return response()->json([
-        'error'   => $e->getMessage(),
-        'code'    => $e->getCode(),
-      ], $e->getCode() ?: 400);
+      return response()->json(
+        intval($e->getMessage()),
+        $e->getCode() ?: 400
+      );
     }
   }
 
   private function deposit(Request $request)
   {
-    $validated = Validator::make($request->all(), [
-      'destination' => 'required|integer',
-      'amount' => 'required|numeric',
-    ]);
+    $validated = $request->validate((new DepositRequest())->rules());
 
-    if ($validated->fails()) throw new Exception("0", 400);
+    $data = new TransactionData(
+      accountId: (int) $validated['destination'],
+      amount: (float) $validated['amount'],
+    );
 
-    try {
-      $transaction = Transaction::createTransaction([
-        'type'       => 'deposit',
-        'amount'     => $request->input('amount'),
-        'account_id' => $request->input('destination'),
-      ]);
+    $account = $this->transactions->deposit($data);
 
-      return response()->json([
-        'destination' => $transaction->account->getInfo(),
-      ], 201);
-    } catch (\Exception $e) {
-      $code = $e->getCode();
-
-      if ($code < 100 || $code > 599) {
-        $code = 500;
-      }
-
-      return response()->json([
-        'status'  => 'error',
-        'message' => $e->getMessage(),
-      ], $code);
-    }
+    return response()->json(['destination' => new AccountResource($account)], 201);
   }
 
   private function withdraw(Request $request)
   {
-    $validated = Validator::make($request->all(), [
-      'origin' => 'required|integer',
-      'amount' => 'required|numeric',
-    ]);
+    $validated = $request->validate((new WithdrawRequest())->rules());
 
-    if ($validated->fails()) throw new Exception("0", 400);
+    $data = new TransactionData(
+      accountId: (int) $validated['origin'],
+      amount: (float) $validated['amount'],
+    );
 
-    $account = Account::find($request->input('origin'));
+    $account = $this->transactions->withdraw($data);
 
-    if (!$account || $account->balance < $request->input('amount')) {
-      return response('0', 404);
-    }
-
-    try {
-      $transaction = Transaction::createTransaction([
-        'type'       => 'withdraw',
-        'amount'     => $request->input('amount'),
-        'account_id' => $account->id,
-      ]);
-
-      return response()->json([
-        'origin' => $transaction->account->getInfo(),
-      ], 201);
-    } catch (\Exception $e) {
-      return response()->json([
-        'status'  => 'error',
-        'message' => $e->getMessage(),
-      ], 500);
-    }
+    return response()->json(['origin' => new AccountResource($account)], 201);
   }
 
   private function transfer(Request $request)
   {
-    $validated = $request->validate([
-      'origin'      => 'required|integer',
-      'destination' => 'required|integer|different:origin',
-      'amount'      => 'required|numeric|min:0.01',
-    ]);
+    $validated = $request->validate((new TransferRequest())->rules());
 
-    try {
-      $transfer = Transfer::createTransfer([
-        'amount'      => $validated['amount'],
-        'account_from' => $validated['origin'],
-        'account_to'  => $validated['destination'],
-      ]);
+    $data = new TransferData(
+      from: (int) $validated['origin'],
+      to: (int) $validated['destination'],
+      amount: (float) $validated['amount'],
+    );
 
-      return response()->json([
-        'origin'      => $transfer->from->getInfo(),
-        'destination' => $transfer->to->getInfo(),
-      ], 201);
-    } catch (\Exception $e) {
-      $code = $e->getCode() ?: 400;
+    $result = $this->transfers->transfer($data);
 
-      if ($code === 404) {
-        return response('0', 404);
-      }
-
-      return response()->json([
-        'status'  => 'error',
-        'message' => $e->getMessage(),
-      ], $code);
-    }
+    return response()->json([
+      'origin' => new AccountResource($result['origin']),
+      'destination' => new AccountResource($result['destination']),
+    ], 201);
   }
 }
